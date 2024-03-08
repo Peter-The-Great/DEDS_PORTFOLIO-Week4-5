@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "warehouse"
+version = "0.1.0"
+description = "De warehouse opdracht met ETL"
+authors = ["Peter-The-Great <PjotrW15@Gmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pandas = "^2.2.1"
+pyodbc = "^5.1.0"
+python-dotenv = "^1.0.1"
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.2"
+notebook = "^7.1.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
