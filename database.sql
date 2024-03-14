@@ -1,107 +1,108 @@
-CREATE TABLE course(
-    course_id varchar(255),
-    course_description varchar(255),
-    PRIMARY KEY (course_id)
+CREATE TABLE RETAILER (
+    RETAILER_Retailer_code VARCHAR(255) PRIMARY KEY,
+    RETAILER_Retailer_codemr VARCHAR(255),
+    RETAILER_Company_name VARCHAR(255),
+    RETAILER_retailer_type VARCHAR(50),
+    RETAILER_address VARCHAR(255),
+    RETAILER_city VARCHAR(100),
+    RETAILER_region VARCHAR(100),
+    RETAILER_postal_zone VARCHAR(20),
+    RETAILER_phone VARCHAR(20),
+    RETAILER_fax VARCHAR(20),
+    RETAILER_country_name VARCHAR(100),
+    RETAILER_country_language VARCHAR(50),
+    RETAILER_country_currency VARCHAR(10),
+    RETAILER_country_flag VARCHAR(100),
+    RETAILER_country_sales_territory VARCHAR(100),
+    RETAILER_segment_name VARCHAR(100),
+    RETAILER_segment_description VARCHAR(255),
+    RETAILER_retailer_site_code VARCHAR(50),
+    RETAILER_first_name VARCHAR(100),
+    RETAILER_last_name VARCHAR(100),
+    RETAILER_job_position VARCHAR(100),
+    RETAILER_extension VARCHAR(20),
+    RETAILER_fax_alt VARCHAR(20),
+    RETAILER_email VARCHAR(255),
+    RETAILER_gender CHAR(1)
+    FOREIGN KEY (RETAILER_Retailer_codemr) REFERENCES Retailer(RETAILER_Retailer_code)
 );
 
-CREATE TABLE age_group(
-    age_group_id varchar(255),
-    age_group_description varchar(255),
-    upper_age int,
-    lower_age int,
-    PRIMARY KEY (age_group_id)
+CREATE TABLE SALES_STAFF (
+    SALES_STAFF_code INT PRIMARY KEY,
+    SALES_STAFF_first_name VARCHAR(100),
+    SALES_STAFF_last_name VARCHAR(100),
+    SALES_STAFF_position VARCHAR(100),
+    SALES_STAFF_work_phone VARCHAR(20),
+    SALES_STAFF_extension VARCHAR(20),
+    SALES_STAFF_fax VARCHAR(20),
+    SALES_STAFF_email VARCHAR(255),
+    SALES_STAFF_date_hired DATE,
+    SALES_STAFF_manager INT,
+    SALES_STAFF_sales_branch VARCHAR(100),
+    SALES_STAFF_address VARCHAR(255),
+    SALES_STAFF_city VARCHAR(100),
+    SALES_STAFF_region VARCHAR(100),
+    SALES_STAFF_postal_zone VARCHAR(20),
+    SALES_STAFF_country_name VARCHAR(100),
+    FOREIGN KEY (SALES_STAFF_manager) REFERENCES SALES_STAFF(SALES_STAFF_code)
+);
+CREATE TABLE RETURN_REASON (
+    RETURN_REASON_code VARCHAR(255) PRIMARY KEY,
+    RETURN_REASON_description VARCHAR(255)
+);
+CREATE TABLE AGE_GROUP (
+    AGEGROUP_age_group_code_id VARCHAR(255) PRIMARY KEY,
+    AGEGROUP_upper_age_number INT,
+    AGEGROUP_lower_age_number INT
+);
+CREATE TABLE COURSE (
+    COURSE_course_code VARCHAR(255) PRIMARY KEY,
+    COURSE_course_description VARCHAR(255),
+);
+CREATE TABLE PRODUCT (
+    PRODUCT_id VARCHAR(255) PRIMARY KEY,
+    PRODUCT_introduction_date DATE,
+    PRODUCT_product_type_code VARCHAR(50),
+    PRODUCT_product_line VARCHAR(100),
+    PRODUCT_production_cost DECIMAL(10, 2),
+    PRODUCT_margin DECIMAL(5, 2),
+    PRODUCT_product_image VARCHAR(255),
+    PRODUCT_language VARCHAR(50),
+    PRODUCT_product_name VARCHAR(255),
+    PRODUCT_description VARCHAR(MAX),
+    PRODUCT_order_method VARCHAR(50)
+);
+CREATE TABLE SATISFACTION_TYPE (
+    SATISFACTION_TYPE_code VARCHAR(255) PRIMARY KEY,
+    SATISFACTION_TYPE_description VARCHAR(255)
 );
 
-CREATE TABLE sales_demographic(
-    demographic_code varchar(255),
-    sales_percentage float,
-    retailer_codemr varchar(255),
-    age_group_id varchar(255),
-    PRIMARY KEY (demographic_code),
-    FOREIGN KEY (retailer_codemr) REFERENCES retailer(retailer_codemr),
-    FOREIGN KEY (age_group_id) REFERENCES age_group(age_group_id)
-);
-
-CREATE TABLE retailer_site(
-    retailer_codemr varchar(255),
-    retailer_name varchar(255),
-    phone_number varchar(255),
-    fax varchar(255),
-    sales_territory_name varchar(255),
-    region_name varchar(255),
-    city_name varchar(255),
-    address varchar(255),
-    postal_zone_code varchar(255),
-    segment_code varchar(255),
-    PRIMARY KEY (retailer_codemr)
-);
-
-CREATE TABLE retailer(
-    retailer_codemr varchar(255),
-    company_name varchar(255),
-    phone_number varchar(255),
-    fax varchar(255),
-    sales_territory_name varchar(255),
-    region_name varchar(255),
-    city_name varchar(255),
-    address varchar(255),
-    postal_zone_code varchar(255),
-    PRIMARY KEY (retailer_codemr)
-);
-
-CREATE TABLE country(
-    country_code varchar(255),
-    country_name varchar(255),
-    language_name varchar(255),
-    currency_name varchar(255),
-    flag_name varchar(255),
-    sales_territory_code varchar(255),
-    sales_territory_name varchar(255),
-    PRIMARY KEY (country_code)
-);
-
-CREATE TABLE sales_staff(
-    sales_staff_code varchar(255),
-    first_name varchar(255),
-    last_name varchar(255),
-    extension varchar(255),
-    work_phone varchar(255),
-    fax varchar(255),
-    email varchar(255),
-    date_hired date,
-    sales_branch_name varchar(255),
-    manager_name varchar(255),
-    PRIMARY KEY (sales_staff_code),
-    FOREIGN KEY (sales_branch_name) REFERENCES sales_branch(name),
-    FOREIGN KEY (manager_name) REFERENCES sales_staff(first_name)
-);
-
-CREATE TABLE satisfaction_type(
-    satisfaction_type_code varchar(255),
-    satisfaction_type_description varchar(255),
-    PRIMARY KEY (satisfaction_type_code)
-);
-
-CREATE TABLE return_season(
-    return_reason_code varchar(255),
-    return_description_en varchar(255),
-    PRIMARY KEY (return_reason_code)
-);
-
-CREATE TABLE product(
-    product_id varchar(255),
-    product_image varchar(255),
-    product_name varchar(255),
-    product_description varchar(255),
-    language varchar(255),
-    production_cost float,
-    cost_margin_percentage float,
-    introduction_date date,
-    order_method_name varchar(255),
-    product_line_name varchar(255),
-    product_type_name varchar(255),
-    PRIMARY KEY (product_id),
-    FOREIGN KEY (order_method_name) REFERENCES order_method(name),
-    FOREIGN KEY (product_line_name) REFERENCES product_line(name),
-    FOREIGN KEY (product_type_name) REFERENCES product_type(name)
+CREATE TABLE ORDERS (
+    order_header VARCHAR(255) PRIMARY KEY,
+    order_detail_code VARCHAR(255),
+    quantity INT,
+    unit_cost DECIMAL(10, 2),
+    unit_price DECIMAL(10, 2),
+    unit_sale_price DECIMAL(10, 2),
+    product_number VARCHAR(50),
+    order_date DATE,
+    turnover_per_line DECIMAL(10, 2),
+    total_turnover DECIMAL(10, 2),
+    production_cost DECIMAL(10, 2),
+    margin DECIMAL(5, 2),
+    return_code INT NULL,
+    return_date DATE NULL,
+    return_quantity INT NULL,
+    return_reason_code INT NULL,
+    order_method VARCHAR(50) NULL,
+    retailer_site_code VARCHAR(50) NULL,
+    retailer_contact_code INT NULL,
+    sales_staff_code INT NULL,
+    sales_branch_code INT NULL,
+    FOREIGN KEY (return_reason_code) REFERENCES RETURN_REASON(return_reason_code),
+    FOREIGN KEY (order_method) REFERENCES ORDERS(order_method_code),
+    FOREIGN KEY (retailer_site_code) REFERENCES RETAILER(retailer_site_code),
+    FOREIGN KEY (retailer_contact_code) REFERENCES RETAILER(retailer_contact_code),
+    FOREIGN KEY (sales_staff_code) REFERENCES SALES_STAFF(sales_staff_code),
+    FOREIGN KEY (sales_branch_code) REFERENCES SalesBranches(sales_branch_code)
 );
