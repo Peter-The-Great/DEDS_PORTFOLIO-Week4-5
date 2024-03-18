@@ -1,5 +1,5 @@
 # %% [markdown]
-# # PR 4.3
+# # PR 4.3, 5.2 en 5.3
 # Van Pjotr en Sennen
 # 
 # Hierin gaan wij een paar queries aanvragen aan de database die wij hebben gemaakt gebasseerd op de ETL diagram van de Great_Outdoors.
@@ -12,6 +12,7 @@ import pyodbc
 import os
 import sqlite3
 from dotenv import load_dotenv
+import sqlalchemy
 import json
 import warnings
 warnings.filterwarnings("ignore")
@@ -23,11 +24,14 @@ DB = {'servername': os.getenv('NAME'),
       'username': os.getenv('USER'),
       'password': os.getenv('PASSWORD')}
 
-# Dit is de connectie string voor de SQL Server
-conn_str = f"DRIVER=SQL Server;SERVER={DB['servername']};DATABASE={DB['database']};UID={DB['username']};PWD={DB['password']};Trusted_Connection=yes;"
+# Increase the connection timeout value to 30 seconds
+conn_str = f"DRIVER=SQL Server;SERVER={DB['servername']};DATABASE={DB['database']};UID={DB['username']};PWD={DB['password']};Trusted_Connection=yes;Connection"
 
-conn = pyodbc.connect(conn_str)
+conn = pyodbc.connect(conn_str, timeout=120)
 cursor = conn.cursor()
+
+engine = sqlalchemy.create_engine(f"mssql+pyodbc:///?odbc_connect={conn_str}")
+
 # Hoe checken we of de connectie werkt?
 print(cursor.execute("SELECT @@version;"))
 
@@ -44,7 +48,15 @@ if(tables == []):
 else:
     for table in tables:
         table = table[0]
-        print(table[0])
+        print(table)
+    for table in tables:
+        table_name = table[0]
+        cursor.execute(f"DROP TABLE {table_name}")
+    try:
+        cursor.commit()
+    except pyodbc.Error as e:
+        print("Error:", e)
+        conn.rollback()
 
 # %% [markdown]
 # Hieronder checken we of we alle drivers hebben geinstalleerd. Meestal maken we gebruikt van de SQL Server driver en SQLite driver. Maar als je op een nieuwer systeem zit kan je ook gebruik maken van de Microsoft Access driver gebruik maken.
@@ -204,22 +216,9 @@ def sizeCheck(df, expected_column_count):
 # Ik neem nu even wat code over van Joran zijn notebook, omdat hij een makkelijke manier heeft gegeven om types aan te geven.
 
 # %%
-column_types = {
-    'name': 'NVARCHAR(80)',
-    'image': 'NVARCHAR(60)',
-    'id': 'INT',
-    'description': 'NTEXT',
-    'money': 'DECIMAL(19,4)',
-    'percentage': 'DECIMAL(12,12)',
-    'date': 'NVARCHAR(30)',
-    'code': 'NVARCHAR(40)',
-    'char': 'CHAR(1)',
-    'number': 'INT',
-    'phone': 'NVARCHAR(30)',
-    'address': 'NVARCHAR(80)',
-    'bool': 'BIT',
-}
-
+"""
+Get the last slice of a string
+"""
 def getTypes():
     types = {}
     for column in json_file.values():
@@ -227,7 +226,29 @@ def getTypes():
         types[column_type] = ''
     return types
 
+
+"""
+Uses the column name to derive a SQL Server compatible type
+- The type is derived from the column name (COLUMN_NAME_type)
+- Column names without a type are invalid
+"""
 def columnType(column_name):
+    column_types = {
+        'name': 'NVARCHAR(80)',
+        'image': 'NVARCHAR(60)',
+        'id': 'INT',
+        'description': 'NTEXT',
+        'money': 'DECIMAL(19,4)',
+        'percentage': 'DECIMAL(12,12)',
+        'date': 'NVARCHAR(30)',
+        'code': 'NVARCHAR(40)',
+        'char': 'CHAR(1)',
+        'number': 'INT',
+        'phone': 'NVARCHAR(30)',
+        'address': 'NVARCHAR(80)',
+        'bool': 'BIT',
+    }
+
     err = ''
     try:
         return column_types[column_name.rsplit('_', 1)[1]]
@@ -237,23 +258,28 @@ def columnType(column_name):
         err = "Column type not found"
     raise Exception(err)
 
-def createTable(dataframe, PK):
-    # Primary key with the type extension removed
-    # Manual labor isn't worth it!
-    tablename = PK.rsplit('_', 1)[0]
-
-    # Add Primary Key as first column
-    columns = f'{PK} {columnType(PK)} NOT NULL PRIMARY KEY'
-
+"""
+Method to insert dataframe data into SQL server
+"""
+def createTable(tablename, dataframe, PK):
+    SK = ''
+    if PK == None:
+        SK = f'SK_{tablename}'
+        columns = ''
+    else:
+        SK = f'SK_{PK}'
+        columns = f'{PK} {columnType(PK)} NOT NULL'
+    # Add Primary Key as third column
+    
     # Add all the other columns
     for column in dataframe.columns:
         if column != PK: # PK is already added
             columns += f', {column} {columnType(column)}'
 
-    # Create the command
-    command = f"CREATE TABLE {tablename} ({columns})"
+    surogate_columns = f"{SK} INT IDENTITY(1,1) NOT NULL PRIMARY KEY, Timestamp DATETIME NOT NULL DEFAULT(GETDATE())"
 
-    print(command)
+    # Create the command
+    command = f"CREATE TABLE {tablename} ({surogate_columns}, {columns})"
 
     try:
         cursor.execute(command)
@@ -264,6 +290,50 @@ def createTable(dataframe, PK):
         else:
             raise(e)
 
+
+"""
+Method to insert dataframe data into SQL server
+"""
+def insertTable(tablename, dataframe, PK):
+    # Add Primary Key as first column
+    columns = PK
+    
+    # Add all the other columns
+    for column in dataframe.columns:
+        if column != PK: # PK is already added
+            columns += f', {column}'
+    
+    # Execute inserts
+    for i, row in dataframe.iterrows():
+        values = ''
+        values += str(row[PK])
+
+        for column in dataframe.columns:
+            if column != PK: # PK is already added
+                try:
+                    val = str(row[column]).replace("'","''")
+                    if val != 'None':
+                        values += f", '{val}'"
+                    else:
+                        values += f", NULL"
+                except AttributeError:
+                    values += f", NULL"
+
+        command = f"INSERT INTO {tablename} ({columns}) VALUES ({values});\n"
+        
+        cursor.execute(command)
+    
+    try:
+        cursor.commit()
+    except pyodbc.Error as e:
+        if 'There is already an object named' in str(e):
+            print('Table already exists in database')
+        else:
+            print(command)
+            print(e)
+
+# Tables to create at end         
+etl_tables = []
 
 # %% [markdown]
 # Nu gaan we eindelijk de data transformeren en in de database stoppen. Eerst gaan we producten, staff, satisfaction, course, sales_forcast, retailer_contact, retailer, Orders, returned_season, returned_item en Order_details importeren. Dit zijn de tabellen die we hebben gemaakt in de database.
@@ -288,8 +358,8 @@ product_etl = filterColumns(product_etl)
 sizeCheck(product_etl,10)
 product_etl
 
-# Create Table
-createTable(product_etl, 'PRODUCT_id')
+# Create Table en doe het in de lijst.
+etl_tables.append(('Product', product_etl, 'PRODUCT_id'))
 
 # %% [markdown]
 # ### Sales_staff
@@ -310,8 +380,8 @@ sales_staff_etl = filterColumns(sales_staff_etl)
 sizeCheck(sales_staff_etl,23)
 sales_staff_etl
 
-# Create Table
-createTable(sales_staff_etl, 'SALES_STAFF_id')
+# Create Table en doe het in de lijst.
+etl_tables.append(('Sales_Staff', sales_staff_etl, 'SALES_STAFF_id'))
 
 # %% [markdown]
 # ### Satisfaction_type
@@ -327,8 +397,8 @@ satisfaction_type_etl = filterColumns(satisfaction_type_etl)
 sizeCheck(satisfaction_type_etl,2)
 satisfaction_type_etl
 
-# Create Table
-createTable(satisfaction_type_etl, 'SATISFACTION_TYPE_id')
+# Create Table en doe het in de lijst.
+etl_tables.append(('Satisfaction_Type', satisfaction_type_etl, 'SATISFACTION_TYPE_id'))
 
 # %% [markdown]
 # ### Course
@@ -344,11 +414,11 @@ course_etl = filterColumns(course_etl)
 sizeCheck(course_etl,2)
 course_etl
 
-# Create Table
-createTable(course_etl, 'COURSE_id')
+# Create Table en doe het in de lijst.
+etl_tables.append(('Course', course_etl, 'COURSE_id'))
 
 # %% [markdown]
-# ### Forecast
+# ### Sales Forecast
 
 # %%
 # Hernoem
@@ -361,8 +431,8 @@ sales_forecast_etl = filterColumns(sales_forecast_etl)
 sizeCheck(sales_forecast_etl,4)
 sales_forecast_etl
 
-# Create Table
-createTable(sales_forecast_etl, 'PRODUCT_id')
+# Create Table en doe het in de lijst.
+etl_tables.append(('Sales_Forecast', sales_forecast_etl, 'PRODUCT_id'))
 
 # %% [markdown]
 # ### Retailer_contact
@@ -383,8 +453,8 @@ retailer_contact_etl = filterColumns(retailer_contact_etl)
 sizeCheck(retailer_contact_etl,23)
 retailer_contact_etl
 
-# Create Table
-createTable(retailer_contact_etl, 'RETAILER_CONTACT_id')
+# Create Table en doe het in de lijst.
+etl_tables.append(('Retailer_Contact', retailer_contact_etl, 'RETAILER_CONTACT_id'))
 
 # %% [markdown]
 # ### Retailer
@@ -410,9 +480,10 @@ retailer_etl = filterColumns(retailer_etl)
 
 # Check
 sizeCheck(retailer_etl,22)
+retailer_etl
 
-# Create Table
-createTable(retailer_etl, 'RETAILER_id')
+# Create Table en doe het in de lijst.
+etl_tables.append(('Retailer', retailer_etl, 'RETAILER_id'))
 
 # %% [markdown]
 # ### Orders
@@ -436,8 +507,8 @@ order_etl = filterColumns(order_etl)
 sizeCheck(order_etl,7)
 order_etl
 
-# Create Table
-createTable(order_etl, 'ORDERS_id')
+# Create Table en doe het in de lijst.
+etl_tables.append(('Orders', order_etl, 'ORDER_TABLE_id'))
 
 # %% [markdown]
 # ### Returned_season
@@ -453,8 +524,8 @@ return_reason_etl = filterColumns(return_reason_etl)
 sizeCheck(return_reason_etl,2)
 return_reason_etl
 
-# Create Table
-createTable(return_reason_etl, 'RETURN_REASON_id')
+# Create Table en doe het in de lijst.
+etl_tables.append(('Return_Reason', return_reason_etl, 'RETURN_REASON_id'))
 
 # %% [markdown]
 # ### Returned_item
@@ -470,8 +541,8 @@ returned_item_etl = filterColumns(returned_item_etl)
 sizeCheck(returned_item_etl,5)
 returned_item_etl
 
-# Create Table
-createTable(returned_item_etl, 'RETURNS_id')
+# Create Table en doe het in de lijst.
+etl_tables.append(('Returns', returned_item_etl, 'RETURNS_id'))
 
 # %% [markdown]
 # ### Order_details
@@ -487,16 +558,60 @@ order_detail_etl = filterColumns(order_detail_etl)
 sizeCheck(order_detail_etl,7)
 order_detail_etl
 
-# Create Table
-createTable(order_detail_etl, 'ORDER_DETAIL_id')
+# Create Table en doe het in de lijst.
+etl_tables.append(('Order_Details', order_detail_etl, 'ORDER_DETAIL_id'))
+
+# %% [markdown]
+# ### Sales Target
+
+# %%
+# Hernoem
+sales_target_etl = SALES_TARGETData.rename(columns=json_file)
+sales_target_etl = sales_target_etl.rename(columns={'Id':'TARGET_id'})
+
+# Filter
+sales_target_etl = filterColumns(sales_target_etl)
+
+# Check
+sizeCheck(sales_target_etl,5)
+sales_target_etl  
+
+# Create Table en doe het in de lijst.
+etl_tables.append(('Sales_Target', sales_target_etl, 'TARGET_id'))
+
+# %% [markdown]
+# ### Uploaden naar de database.
+# 
+# Nu gaan we alle data uploaden naar de database om ervoor te zorgen dat we alle data juist in de database hebben geupload.
+
+# %%
+# Nu maken we de tabellen aan
+for table in etl_tables:
+    print(f"Creating {table[0]}")
+    createTable(table[0], table[1], table[2])
+    insertTable(table[0], table[1], table[2])
+    print(f"Inserted {table[0]}")
+
+# Close the connection
+print("All is done")
 
 # %% [markdown]
 # ## Loading
 
 # %% [markdown]
-# Hieronder gaan we de data inladen vanuit de SQL Server database. Met de database verzorgen we ervoor dat we makkelijk de data kunnen inladen in de database. We maken een functie die de data inlaad in de database.
+# Hieronder gaan we de data inladen vanuit de SQL Server database. Met de database verzorgen we ervoor dat we makkelijk de data kunnen inladen in de database. We maken een functie die de data inlaad in de database. Dat deden we all gedeelte lijk boven, maar nu gaan we de data uit de database halen.
 
 # %%
+tables = cursor.execute("SELECT t.name FROM sys.tables t")
+tables = tables.fetchall()
+for table in tables:
+    table = table[0]
+    print(table)
+print()
+
+print("Resultaat:")
+leef = cursor.execute("SELECT * FROM PRODUCT WHERE PRODUCT_id = '8'")
+print(leef.fetchall())
 
 
 
