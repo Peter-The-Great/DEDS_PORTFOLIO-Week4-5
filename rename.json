@@ -8,7 +8,7 @@
     "COUNTRY_EN": "COUNTRY_name",
     "COURSE_CODE": "COURSE_id",
     "COURSE_DESCRIPTION": "COURSE_description",
-    "COUNTRY_LANGUAGE_code": "COUNTRY_LANGUAGE_id",
+    "COUNTRY_LANGUAGE_code": "COUNTRY_LANGUAGE_code",
     "CURRENCY_NAME": "CURRENCY_name",
     "DATE_HIRED": "DATE_HIRED_date",
     "DESCRIPTION": "PRODUCT_description",
@@ -31,7 +31,7 @@
     "ORDER_DETAIL_CODE": "ORDER_DETAIL_id",
     "ORDER_METHOD_CODE": "ORDER_METHOD_id",
     "ORDER_METHOD_EN": "ORDER_METHOD_name",
-    "ORDER_NUMBER": "ORDERS_id",
+    "ORDER_NUMBER": "ORDER_TABLE_id",
     "PHONE": "PHONE_phone",
     "POSITION_EN": "POSITION_name",
     "POSTAL_ZONE": "POSTAL_ZONE_code",
@@ -61,11 +61,12 @@
     "SATISFACTION_TYPE_CODE": "SATISFACTION_TYPE_id",
     "SATISFACTION_TYPE_DESCRIPTION": "SATISFACTION_TYPE_description",
     "SEGMENT_CODE": "SEGMENT_code",
-    "SEGMENT_LANGUAGE_code": "SEGMENT_LANGUAGE_id",
+    "SEGMENT_LANGUAGE_code": "SEGMENT_LANGUAGE_code",
     "TERRITORY_NAME_EN": "TERRITORY_name",
     "UNIT_COST": "UNIT_COST_money",
     "UNIT_PRICE": "UNIT_PRICE_money",
     "UNIT_SALE_PRICE": "UNIT_SALE_PRICE_money",
     "WORK_PHONE": "WORK_PHONE_phone",
-    "YEAR": "YEAR_number"
+    "YEAR": "YEAR_number",
+    "TARGET_id": "TARGET_id"
 }
