@@ -181,15 +181,16 @@ country = merge_tables(sales_country, crm_country, 'COUNTRY_CODE')
 # Eerst zorgen we ervoor dat we de rename.json gaan importeren, waar ik de nieuwe namen van de kolommen heb gezet. Met deze kolommen gaan we de data mergen.
 
 # %%
-# importeer de json file
 with open('rename.json') as f:
-    json_file = json.load(f)
-
-# Geef een lijst van alle waardes in de json file
-valid_columns = list(json_file.values())
-
+        json_file = json.load(f)
 # Filter de kolommen van de dataframes, door alleen de kolommen te houden die in de json file staan.
 def filterColumns(dataframe):
+    # importeer de json file
+    with open('rename.json') as f:
+        json_file = json.load(f)
+
+    # Geef een lijst van alle waardes in de json file
+    valid_columns = list(json_file.values())
     valid_columns_set = set(valid_columns)
     actual_columns_set = set(dataframe.columns)
     intersection_columns = list(actual_columns_set.intersection(valid_columns_set))
@@ -220,6 +221,9 @@ Pak de verschillende types.
 """
 def getTypes():
     types = {}
+    json_file = {}
+    with open('rename.json') as f:
+        json_file = json.load(f)
     for column in json_file.values():
         column_type = column.rsplit('_', 1)[1]
         types[column_type] = ''
