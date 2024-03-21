@@ -16,7 +16,6 @@ import json
 import warnings
 warnings.filterwarnings("ignore")
 
-
 # %%
 DB = {'servername': os.getenv('NAME'),
       'database': os.getenv('DATABASE'),
@@ -191,7 +190,7 @@ def filterColumns(dataframe):
     valid_columns = list(json_file.values())
     valid_columns_set = set(valid_columns)
     actual_columns_set = set(dataframe.columns)
-    intersection_columns = list(actual_columns_set.intersection(valid_columns_set))
+    intersection_columns = list(valid_columns_set.intersection(actual_columns_set))
 
     # Gebruik de kolommen die in de json file staan om de dataframes te filteren
     return dataframe[intersection_columns]
@@ -364,7 +363,7 @@ product_etl = product_etl.rename(columns=json_file)
 product_etl = filterColumns(product_etl)
 
 # Check
-sizeCheck(product_etl,10)
+sizeCheck(product_etl,12)
 product_etl
 
 # Create Table en doe het in de lijst.

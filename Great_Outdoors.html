@@ -7578,7 +7578,7 @@ a.anchor-link {
 <div class="jp-OutputArea-child">
 <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
-<pre>&lt;pyodbc.Cursor object at 0x0000021EF19DD830&gt;
+<pre>&lt;pyodbc.Cursor object at 0x0000018E3186B630&gt;
 </pre>
 </div>
 </div>
@@ -7633,20 +7633,7 @@ a.anchor-link {
 <div class="jp-OutputArea-child">
 <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
-<pre>Product
-Sales_Staff
-Satisfaction_Type
-Training
-Satisfaction
-Course
-Sales_Forecast
-Retailer_Contact
-Retailer
-Orders
-Return_Reason
-Returns
-Order_Details
-Sales_Target
+<pre>No tables found, the database is empty.
 </pre>
 </div>
 </div>
@@ -7685,9 +7672,10 @@ Sales_Target
 <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[ ]:</div>
 <div class="jp-RenderedText jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/plain" tabindex="0">
 <pre>['SQL Server',
+ 'MySQL ODBC 8.0 ANSI Driver',
+ 'MySQL ODBC 8.0 Unicode Driver',
  'SQL Server Native Client RDA 11.0',
  'ODBC Driver 17 for SQL Server',
- 'ODBC Driver 18 for SQL Server',
  'Microsoft Access Driver (*.mdb, *.accdb)',
  'Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)',
  'Microsoft Access Text Driver (*.txt, *.csv)']</pre>
@@ -7906,7 +7894,7 @@ Imported sales_product_forecast
     <span class="n">valid_columns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">json_file</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
     <span class="n">valid_columns_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">valid_columns</span><span class="p">)</span>
     <span class="n">actual_columns_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">dataframe</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
-    <span class="n">intersection_columns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">actual_columns_set</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">valid_columns_set</span><span class="p">))</span>
+    <span class="n">intersection_columns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">valid_columns_set</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">actual_columns_set</span><span class="p">))</span>
 
     <span class="c1"># Gebruik de kolommen die in de json file staan om de dataframes te filteren</span>
     <span class="k">return</span> <span class="n">dataframe</span><span class="p">[</span><span class="n">intersection_columns</span><span class="p">]</span>
@@ -8121,7 +8109,7 @@ Imported sales_product_forecast
 <span class="n">product_etl</span> <span class="o">=</span> <span class="n">filterColumns</span><span class="p">(</span><span class="n">product_etl</span><span class="p">)</span>
 
 <span class="c1"># Check</span>
-<span class="n">sizeCheck</span><span class="p">(</span><span class="n">product_etl</span><span class="p">,</span><span class="mi">10</span><span class="p">)</span>
+<span class="n">sizeCheck</span><span class="p">(</span><span class="n">product_etl</span><span class="p">,</span><span class="mi">12</span><span class="p">)</span>
 <span class="n">product_etl</span>
 
 <span class="c1"># Create Table en doe het in de lijst.</span>
@@ -8138,7 +8126,8 @@ Imported sales_product_forecast
 <div class="jp-OutputArea-child">
 <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
-<pre>Table has 10 columns
+<pre>Table has 12 columns
+
 </pre>
 </div>
 </div>
@@ -8859,7 +8848,13 @@ Inserted Sales_Staff
 Creating Satisfaction_Type
 Inserted Satisfaction_Type
 Creating Training
-Inserted Training
+</pre>
+</div>
+</div>
+<div class="jp-OutputArea-child">
+<div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
+<pre>Inserted Training
 Creating Satisfaction
 Inserted Satisfaction
 Creating Course
@@ -8954,7 +8949,7 @@ Order_Details
 Sales_Target
 
 Resultaat:
-[(94, datetime.datetime(2024, 3, 21, 13, 13, 22, 433000), 8, 'The TrailChef Double Flame is a camp stove which attaches directly to fuel canisters. Features precise flame control and a built-in windscreen.  Weight is 850 g, fuel is propane.', 'Camping Equipment', Decimal('75.0000'), 'P08CE1CG1.jpg', Decimal('0.410000000000'), 'EN', 1, '5-3-2013', 'TrailChef Double Flame')]
+[(94, datetime.datetime(2024, 3, 21, 21, 50, 47, 493000), 8, '5-3-2013', Decimal('0.410000000000'), 'Cooking Gear', Decimal('75.0000'), 'Camping Equipment', 'EN', 1, 1, 'TrailChef Double Flame', 'The TrailChef Double Flame is a camp stove which attaches directly to fuel canisters. Features precise flame control and a built-in windscreen.  Weight is 850 g, fuel is propane.', 'P08CE1CG1.jpg')]
 </pre>
 </div>
 </div>
