@@ -181,8 +181,6 @@ country = merge_tables(sales_country, crm_country, 'COUNTRY_CODE')
 # Eerst zorgen we ervoor dat we de rename.json gaan importeren, waar ik de nieuwe namen van de kolommen heb gezet. Met deze kolommen gaan we de data mergen.
 
 # %%
-with open('rename.json') as f:
-        json_file = json.load(f)
 # Filter de kolommen van de dataframes, door alleen de kolommen te houden die in de json file staan.
 def filterColumns(dataframe):
     # importeer de json file
@@ -216,12 +214,16 @@ def sizeCheck(df, expected_column_count):
 # Ik neem nu even wat code over van Joran zijn notebook, omdat hij een makkelijke manier heeft gegeven om types aan te geven.
 
 # %%
+# importeer de json file
+with open('rename.json') as f:
+    json_file = json.load(f)
+
 """
 Pak de verschillende types.
 """
 def getTypes():
     types = {}
-    json_file = {}
+    # importeer de json file
     with open('rename.json') as f:
         json_file = json.load(f)
     for column in json_file.values():
@@ -635,7 +637,6 @@ for table in etl_tables:
 
 # Close the connection
 print("All is done")
-conn.close()
 
 # %% [markdown]
 # ## Loading
