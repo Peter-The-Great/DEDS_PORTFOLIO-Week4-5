@@ -75,7 +75,7 @@ pyodbc.drivers()
 select_tables = "SELECT name FROM sqlite_master WHERE type='table'"
 
 # Verbind met sqlite go_sales staff
-sales_conn = sqlite3.connect("go_sales.sqlite")
+sales_conn = sqlite3.connect("data/go_sales.sqlite")
 sales_tables = pd.read_sql_query(select_tables, sales_conn)
 
 sales_country       = pd.read_sql_query("SELECT * FROM country;", sales_conn)
@@ -94,7 +94,7 @@ SALES_TARGETData    = pd.read_sql_query("SELECT * FROM SALES_TARGETData;", sales
 sqlite_sequence     = pd.read_sql_query("SELECT * FROM sqlite_sequence;", sales_conn)
 print("Import sales")
 
-staff_conn = sqlite3.connect("go_staff.sqlite")
+staff_conn = sqlite3.connect("data/go_staff.sqlite")
 staff_tables = pd.read_sql_query(select_tables, staff_conn)
 course            = pd.read_sql_query("SELECT * FROM course;", staff_conn)
 sales_branch      = pd.read_sql_query("SELECT * FROM sales_branch;", staff_conn)
@@ -104,7 +104,7 @@ satisfaction_type = pd.read_sql_query("SELECT * FROM satisfaction_type;", staff_
 training          = pd.read_sql_query("SELECT * FROM training;", staff_conn)
 print("Imported staff")
 
-crm_conn = sqlite3.connect("go_crm.sqlite")
+crm_conn = sqlite3.connect("data/go_crm.sqlite")
 crm_tables = pd.read_sql_query(select_tables, crm_conn)
                            
 age_group             = pd.read_sql_query("SELECT * FROM age_group;", crm_conn)
@@ -119,10 +119,10 @@ sales_demographic     = pd.read_sql_query("SELECT * FROM sales_demographic;", cr
 sales_territory       = pd.read_sql_query("SELECT * FROM sales_territory;", crm_conn)
 print("Imported crm tables")
 
-inventory_level = pd.read_csv("GO_SALES_INVENTORY_LEVELSData.csv")
+inventory_level = pd.read_csv("data/GO_SALES_INVENTORY_LEVELSData.csv")
 print("Imported inventory")
 
-sales_forecast = pd.read_csv("GO_SALES_PRODUCT_FORECASTData.csv")
+sales_forecast = pd.read_csv("data/GO_SALES_PRODUCT_FORECASTData.csv")
 print("Imported sales_product_forecast")
 
 # %% [markdown]
@@ -433,6 +433,34 @@ sales_forecast_etl
 
 # Create Table en doe het in de lijst.
 etl_tables.append(('Sales_Forecast', sales_forecast_etl, 'PRODUCT_id'))
+
+# Hernoem
+training_etl = training.rename(columns=json_file)
+
+# Filter
+training_etl = filterColumns(training_etl)
+
+# Check
+sizeCheck(training_etl,3)
+training_etl
+
+# Create Table en doe het in de lijst.
+etl_tables.append(('Training', training_etl, None))
+training_etl
+
+# Hernoem
+satisfaction_etl = satisfaction.rename(columns=json_file)
+
+# Filter
+satisfaction_etl = filterColumns(training_etl)
+
+# Check
+sizeCheck(satisfaction_etl,3)
+satisfaction_etl
+
+# Create Table en doe het in de lijst.
+etl_tables.append(('Satisfaction', satisfaction_etl, None))
+satisfaction_etl
 
 # %% [markdown]
 # ### Retailer_contact
