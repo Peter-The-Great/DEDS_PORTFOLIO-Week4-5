@@ -137,7 +137,7 @@ def columnType(column_name):
 """
 Methode om een ​​tabel in de SQL-server te maken
 """
-def createTable(tablename, dataframe, PK):
+def createTable(tablename, dataframe, PK,cursor):
     SK = ''
     if PK == None:
         SK = f'SK_{tablename}'
@@ -170,7 +170,7 @@ def createTable(tablename, dataframe, PK):
 """
 Methode om dataframegegevens in de SQL-server in te voegen
 """
-def insertTable(tablename, dataframe, PK):
+def insertTable(tablename, dataframe, PK,cursor):
     # Voeg primary key toe als eerste kolom
     columns = PK
     

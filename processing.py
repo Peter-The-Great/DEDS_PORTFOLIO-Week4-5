@@ -3,11 +3,9 @@ import pyodbc
 import sqlite3
 import sqlalchemy
 import json
-import warnings
 import os
 from settings import Settings
 from tableutils import *
-warnings.filterwarnings("ignore")
 def run(settings: Settings):
     select_tables = "SELECT name FROM sqlite_master WHERE type='table'"
 

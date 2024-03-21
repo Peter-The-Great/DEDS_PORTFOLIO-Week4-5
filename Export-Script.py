@@ -11,12 +11,11 @@ import pandas as pd
 import pyodbc
 import os
 import sqlite3
-from dotenv import load_dotenv
 import sqlalchemy
 import json
 import warnings
 warnings.filterwarnings("ignore")
-load_dotenv()
+
 
 # %%
 DB = {'servername': os.getenv('NAME'),
@@ -217,7 +216,7 @@ def sizeCheck(df, expected_column_count):
 
 # %%
 """
-Get the last slice of a string
+Pak de verschillende types.
 """
 def getTypes():
     types = {}
@@ -228,9 +227,9 @@ def getTypes():
 
 
 """
-Uses the column name to derive a SQL Server compatible type
-- The type is derived from the column name (COLUMN_NAME_type)
-- Column names without a type are invalid
+Gebruikt de kolomnaam om een ​​SQL Server-compatibel type af te leiden
+- Het type is afgeleid van de kolomnaam (COLUMN_NAME_type)
+- Kolomnamen zonder type zijn ongeldig
 """
 def columnType(column_name):
     column_types = {
@@ -259,21 +258,22 @@ def columnType(column_name):
     raise Exception(err)
 
 """
-Method to insert dataframe data into SQL server
+Methode om tabellen aan te maken van dataframes in SQL server
 """
-def createTable(tablename, dataframe, PK):
+def createTable(tablename, dataframe, PK, cursor):
     SK = ''
     if PK == None:
+        PK = dataframe.columns[0]
         SK = f'SK_{tablename}'
-        columns = ''
+        columns = f'{PK} {columnType(PK)}'
     else:
         SK = f'SK_{PK}'
         columns = f'{PK} {columnType(PK)} NOT NULL'
-    # Add Primary Key as third column
+    # Voeg de primary key to als de derde kolom
     
-    # Add all the other columns
+    # Voeg de rest van de kolomen toe.
     for column in dataframe.columns:
-        if column != PK: # PK is already added
+        if column != PK: # PK bestaat al
             columns += f', {column} {columnType(column)}'
 
     surogate_columns = f"{SK} INT IDENTITY(1,1) NOT NULL PRIMARY KEY, Timestamp DATETIME NOT NULL DEFAULT(GETDATE())"
@@ -290,26 +290,29 @@ def createTable(tablename, dataframe, PK):
         else:
             raise(e)
 
-
 """
-Method to insert dataframe data into SQL server
+Methode of de dataframe te inserten in de SQL server
 """
-def insertTable(tablename, dataframe, PK):
-    # Add Primary Key as first column
+def insertTable(tablename, dataframe, PK, cursor):
+    # Voeg de primary key toe, maar als die leeg is probeer je de eerste kolom.
+    columns = ''
+    if PK == None:
+        PK = dataframe.columns[0]
+        
     columns = PK
-    
-    # Add all the other columns
+        
+    # Voeg dan de rest van de kolommen erbij
     for column in dataframe.columns:
-        if column != PK: # PK is already added
+        if column != PK: # PK bestaat al
             columns += f', {column}'
     
-    # Execute inserts
+    # Doe de inserts
     for i, row in dataframe.iterrows():
         values = ''
         values += str(row[PK])
 
         for column in dataframe.columns:
-            if column != PK: # PK is already added
+            if column != PK: # PK bestaat al
                 try:
                     val = str(row[column]).replace("'","''")
                     if val != 'None':
@@ -332,7 +335,7 @@ def insertTable(tablename, dataframe, PK):
             print(command)
             print(e)
 
-# Tables to create at end         
+# Tabellen worden gemaakt aan het einde       
 etl_tables = []
 
 # %% [markdown]
@@ -401,6 +404,40 @@ satisfaction_type_etl
 etl_tables.append(('Satisfaction_Type', satisfaction_type_etl, 'SATISFACTION_TYPE_id'))
 
 # %% [markdown]
+# ### Training
+
+# %%
+# Hernoem
+training_etl = training.rename(columns=json_file)
+
+# Filter
+training_etl = filterColumns(training_etl)
+
+# Check
+sizeCheck(training_etl,3)
+training_etl
+
+# Create Table en doe het in de lijst.
+etl_tables.append(('Training', training_etl, None))
+
+# %% [markdown]
+# ### Satisfaction
+
+# %%
+# Hernoem
+satisfaction_etl = satisfaction.rename(columns=json_file)
+
+# Filter
+satisfaction_etl = filterColumns(training_etl)
+
+# Check
+sizeCheck(satisfaction_etl,3)
+satisfaction_etl
+
+# Create Table en doe het in de lijst.
+etl_tables.append(('Satisfaction', satisfaction_etl, None))
+
+# %% [markdown]
 # ### Course
 
 # %%
@@ -433,34 +470,6 @@ sales_forecast_etl
 
 # Create Table en doe het in de lijst.
 etl_tables.append(('Sales_Forecast', sales_forecast_etl, 'PRODUCT_id'))
-
-# Hernoem
-training_etl = training.rename(columns=json_file)
-
-# Filter
-training_etl = filterColumns(training_etl)
-
-# Check
-sizeCheck(training_etl,3)
-training_etl
-
-# Create Table en doe het in de lijst.
-etl_tables.append(('Training', training_etl, None))
-training_etl
-
-# Hernoem
-satisfaction_etl = satisfaction.rename(columns=json_file)
-
-# Filter
-satisfaction_etl = filterColumns(training_etl)
-
-# Check
-sizeCheck(satisfaction_etl,3)
-satisfaction_etl
-
-# Create Table en doe het in de lijst.
-etl_tables.append(('Satisfaction', satisfaction_etl, None))
-satisfaction_etl
 
 # %% [markdown]
 # ### Retailer_contact
@@ -616,12 +625,13 @@ etl_tables.append(('Sales_Target', sales_target_etl, 'TARGET_id'))
 # Nu maken we de tabellen aan
 for table in etl_tables:
     print(f"Creating {table[0]}")
-    createTable(table[0], table[1], table[2])
-    insertTable(table[0], table[1], table[2])
+    createTable(table[0], table[1], table[2], cursor)
+    insertTable(table[0], table[1], table[2], cursor)
     print(f"Inserted {table[0]}")
 
 # Close the connection
 print("All is done")
+conn.close()
 
 # %% [markdown]
 # ## Loading

@@ -1,10 +1,11 @@
 from processing import run
 from settings import Settings
 import os
-from dotenv import load_dotenv
+import warnings
+
+warnings.filterwarnings("ignore")
 
 if __name__ == '__main__':
-    load_dotenv()
     settings = Settings(
         server=os.getenv("NAME"),
         database=os.getenv("DATABASE"),
