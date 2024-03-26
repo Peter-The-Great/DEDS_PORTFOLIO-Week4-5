@@ -7534,6 +7534,7 @@ a.anchor-link {
 <span class="kn">import</span> <span class="nn">pyodbc</span>
 <span class="kn">import</span> <span class="nn">os</span>
 <span class="kn">import</span> <span class="nn">sqlite3</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">sqlalchemy</span>
 <span class="kn">import</span> <span class="nn">json</span>
 <span class="kn">import</span> <span class="nn">warnings</span>
@@ -7578,7 +7579,7 @@ a.anchor-link {
 <div class="jp-OutputArea-child">
 <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
-<pre>&lt;pyodbc.Cursor object at 0x0000018E3186B630&gt;
+<pre>&lt;pyodbc.Cursor object at 0x000001744C412B30&gt;
 </pre>
 </div>
 </div>
@@ -7633,7 +7634,20 @@ a.anchor-link {
 <div class="jp-OutputArea-child">
 <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
-<pre>No tables found, the database is empty.
+<pre>Product
+Sales_Staff
+Satisfaction_Type
+Training
+Satisfaction
+Course
+Sales_Forecast
+Retailer_Contact
+Retailer
+Orders
+Return_Reason
+Returns
+Order_Details
+Sales_Target
 </pre>
 </div>
 </div>
@@ -7894,7 +7908,7 @@ Imported sales_product_forecast
     <span class="n">valid_columns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">json_file</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
     <span class="n">valid_columns_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">valid_columns</span><span class="p">)</span>
     <span class="n">actual_columns_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">dataframe</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
-    <span class="n">intersection_columns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">valid_columns_set</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">actual_columns_set</span><span class="p">))</span>
+    <span class="n">intersection_columns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">actual_columns_set</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">valid_columns_set</span><span class="p">))</span>
 
     <span class="c1"># Gebruik de kolommen die in de json file staan om de dataframes te filteren</span>
     <span class="k">return</span> <span class="n">dataframe</span><span class="p">[</span><span class="n">intersection_columns</span><span class="p">]</span>
@@ -7986,8 +8000,10 @@ Imported sales_product_forecast
 <span class="sd">"""</span>
 <span class="sd">Methode om tabellen aan te maken van dataframes in SQL server</span>
 <span class="sd">"""</span>
-<span class="k">def</span> <span class="nf">createTable</span><span class="p">(</span><span class="n">tablename</span><span class="p">,</span> <span class="n">dataframe</span><span class="p">,</span> <span class="n">PK</span><span class="p">,</span> <span class="n">cursor</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">createTable</span><span class="p">(</span><span class="n">tablename</span><span class="p">,</span> <span class="n">dataframe</span><span class="p">,</span> <span class="n">PK</span><span class="p">,</span> <span class="n">SK_list</span><span class="p">,</span> <span class="n">cursor</span><span class="p">):</span>
     <span class="n">SK</span> <span class="o">=</span> <span class="s1">''</span>
+    <span class="n">columns</span> <span class="o">=</span> <span class="s1">''</span>
+    <span class="n">foreign_SQL_SK_columns</span> <span class="o">=</span> <span class="s1">''</span>
     <span class="k">if</span> <span class="n">PK</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">PK</span> <span class="o">=</span> <span class="n">dataframe</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
         <span class="n">SK</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'SK_</span><span class="si">{</span><span class="n">tablename</span><span class="si">}</span><span class="s1">'</span>
@@ -7995,60 +8011,76 @@ Imported sales_product_forecast
     <span class="k">else</span><span class="p">:</span>
         <span class="n">SK</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'SK_</span><span class="si">{</span><span class="n">PK</span><span class="si">}</span><span class="s1">'</span>
         <span class="n">columns</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">PK</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="n">columnType</span><span class="p">(</span><span class="n">PK</span><span class="p">)</span><span class="si">}</span><span class="s1"> NOT NULL'</span>
-    <span class="c1"># Voeg de primary key to als de derde kolom</span>
+    <span class="c1"># Voeg de primary key toe, maar als die leeg is probeer je de eerste kolom.</span>
     
-    <span class="c1"># Voeg de rest van de kolomen toe.</span>
+    <span class="c1"># Voege de rest van de kolommen toe</span>
     <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">dataframe</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">column</span> <span class="o">!=</span> <span class="n">PK</span><span class="p">:</span> <span class="c1"># PK bestaat al</span>
             <span class="n">columns</span> <span class="o">+=</span> <span class="sa">f</span><span class="s1">', </span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="n">columnType</span><span class="p">(</span><span class="n">column</span><span class="p">)</span><span class="si">}</span><span class="s1">'</span>
+            <span class="k">if</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">SK_list</span><span class="p">:</span>
+                <span class="n">foreign_SQL_SK_columns</span> <span class="o">+=</span> <span class="sa">f</span><span class="s1">', SK_</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s1"> INT'</span>
 
     <span class="n">surogate_columns</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">SK</span><span class="si">}</span><span class="s2"> INT IDENTITY(1,1) NOT NULL PRIMARY KEY, Timestamp DATETIME NOT NULL DEFAULT(GETDATE())"</span>
 
-    <span class="c1"># Create the command</span>
-    <span class="n">command</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"CREATE TABLE </span><span class="si">{</span><span class="n">tablename</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">surogate_columns</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">columns</span><span class="si">}</span><span class="s2">)"</span>
+    <span class="c1"># Maak de tabel aan</span>
+    <span class="n">command</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"CREATE TABLE </span><span class="si">{</span><span class="n">tablename</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">surogate_columns</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">columns</span><span class="o">+</span><span class="n">foreign_SQL_SK_columns</span><span class="si">}</span><span class="s2">)"</span>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
         <span class="n">cursor</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
     <span class="k">except</span> <span class="n">pyodbc</span><span class="o">.</span><span class="n">Error</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-        <span class="k">if</span> <span class="s1">'There is already an object named'</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">):</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s1">'Table already exists in database'</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+        <span class="k">raise</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+
 
 <span class="sd">"""</span>
 <span class="sd">Methode of de dataframe te inserten in de SQL server</span>
 <span class="sd">"""</span>
-<span class="k">def</span> <span class="nf">insertTable</span><span class="p">(</span><span class="n">tablename</span><span class="p">,</span> <span class="n">dataframe</span><span class="p">,</span> <span class="n">PK</span><span class="p">,</span> <span class="n">cursor</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">insertTable</span><span class="p">(</span><span class="n">tablename</span><span class="p">,</span> <span class="n">dataframe</span><span class="p">,</span> <span class="n">PK</span><span class="p">,</span> <span class="n">SK_list</span><span class="p">,</span> <span class="n">cursor</span><span class="p">):</span>
     <span class="c1"># Voeg de primary key toe, maar als die leeg is probeer je de eerste kolom.</span>
-    <span class="n">columns</span> <span class="o">=</span> <span class="s1">''</span>
+    <span class="n">SQL_columns</span> <span class="o">=</span> <span class="s1">''</span>
+    <span class="n">SQL_SK_columns</span> <span class="o">=</span> <span class="s1">''</span>
     <span class="k">if</span> <span class="n">PK</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">PK</span> <span class="o">=</span> <span class="n">dataframe</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
         
-    <span class="n">columns</span> <span class="o">=</span> <span class="n">PK</span>
+    <span class="n">SQL_columns</span> <span class="o">=</span> <span class="n">PK</span>
         
-    <span class="c1"># Voeg dan de rest van de kolommen erbij</span>
+    <span class="c1"># Voeg alle andere kolommen toe</span>
     <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">dataframe</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">column</span> <span class="o">!=</span> <span class="n">PK</span><span class="p">:</span> <span class="c1"># PK bestaat al</span>
-            <span class="n">columns</span> <span class="o">+=</span> <span class="sa">f</span><span class="s1">', </span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s1">'</span>
+        <span class="c1"># Skip de PK kolom</span>
+        <span class="k">if</span> <span class="n">column</span> <span class="o">!=</span> <span class="n">PK</span><span class="p">:</span> 
+            <span class="c1"># Maak de SK kolommen aan</span>
+            <span class="k">if</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">SK_list</span><span class="p">:</span>
+                <span class="n">SQL_columns</span>    <span class="o">+=</span> <span class="sa">f</span><span class="s1">', </span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s1">'</span>
+                <span class="n">SQL_SK_columns</span> <span class="o">+=</span> <span class="sa">f</span><span class="s1">', SK_</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s1">'</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">SQL_columns</span>    <span class="o">+=</span> <span class="sa">f</span><span class="s1">', </span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s1">'</span>
+
     
-    <span class="c1"># Doe de inserts</span>
+    <span class="c1"># Voer de insert commando uit</span>
     <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">dataframe</span><span class="o">.</span><span class="n">iterrows</span><span class="p">():</span>
         <span class="n">values</span> <span class="o">=</span> <span class="s1">''</span>
+        <span class="n">SK_values</span> <span class="o">=</span> <span class="s1">''</span>
         <span class="n">values</span> <span class="o">+=</span> <span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="n">PK</span><span class="p">])</span>
 
+        <span class="c1"># Add values</span>
         <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">dataframe</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">column</span> <span class="o">!=</span> <span class="n">PK</span><span class="p">:</span> <span class="c1"># PK bestaat al</span>
+            <span class="k">if</span> <span class="n">column</span> <span class="o">!=</span> <span class="n">PK</span><span class="p">:</span> <span class="c1"># PK is already added</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="n">val</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="n">column</span><span class="p">])</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"'"</span><span class="p">,</span><span class="s2">"''"</span><span class="p">)</span>
-                    <span class="k">if</span> <span class="n">val</span> <span class="o">!=</span> <span class="s1">'None'</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">val</span> <span class="o">!=</span> <span class="s1">'None'</span> <span class="ow">and</span> <span class="n">val</span> <span class="o">!=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">:</span>
                         <span class="n">values</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">", '</span><span class="si">{</span><span class="n">val</span><span class="si">}</span><span class="s2">'"</span>
+                        <span class="k">if</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">SK_list</span><span class="p">:</span>
+                            <span class="c1"># NULL refereerd naar de SK van de andere tabel</span>
+                            <span class="n">SK_values</span> <span class="o">+=</span> <span class="s1">', 0'</span>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="n">values</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">", NULL"</span>
+                        <span class="k">if</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">SK_list</span><span class="p">:</span>
+                            <span class="c1"># NULL refereerd naar de SK van de andere tabel</span>
+                            <span class="n">SK_values</span> <span class="o">+=</span> <span class="s1">', NULL'</span>
                 <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
                     <span class="n">values</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">", NULL"</span>
 
-        <span class="n">command</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"INSERT INTO </span><span class="si">{</span><span class="n">tablename</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">columns</span><span class="si">}</span><span class="s2">) VALUES (</span><span class="si">{</span><span class="n">values</span><span class="si">}</span><span class="s2">);</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="n">command</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"INSERT INTO </span><span class="si">{</span><span class="n">tablename</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">SQL_columns</span><span class="o">+</span><span class="n">SQL_SK_columns</span><span class="si">}</span><span class="s2">) VALUES (</span><span class="si">{</span><span class="n">values</span><span class="o">+</span><span class="n">SK_values</span><span class="si">}</span><span class="s2">);</span><span class="se">\n</span><span class="s2">"</span>
         
         <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
     
@@ -8061,8 +8093,51 @@ Imported sales_product_forecast
             <span class="nb">print</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
             <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
 
+<span class="sd">"""</span>
+<span class="sd">Methode om de surrogaatsleutels van een tabel in de SQL-server bij te werken</span>
+<span class="sd">"""</span>
+<span class="k">def</span> <span class="nf">updateSurrogate</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">foreign_table</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">foreign_column</span><span class="p">,</span> <span class="n">cursor</span><span class="p">):</span>
+
+    <span class="n">command</span> <span class="o">=</span> \
+    <span class="sa">f</span><span class="s2">"WITH CTE_MostRecent AS ( </span><span class="se">\</span>
+<span class="s2">            SELECT </span><span class="se">\</span>
+<span class="s2">                SK_</span><span class="si">{</span><span class="n">foreign_column</span><span class="si">}</span><span class="s2">, </span><span class="se">\</span>
+<span class="s2">                </span><span class="si">{</span><span class="n">foreign_column</span><span class="si">}</span><span class="s2">, </span><span class="se">\</span>
+<span class="s2">                ROW_NUMBER() OVER(PARTITION BY SK_</span><span class="si">{</span><span class="n">foreign_column</span><span class="si">}</span><span class="s2"> ORDER BY Timestamp DESC) AS rn </span><span class="se">\</span>
+<span class="s2">            FROM </span><span class="se">\</span>
+<span class="s2">                </span><span class="si">{</span><span class="n">foreign_table</span><span class="si">}</span><span class="s2">  </span><span class="se">\</span>
+<span class="s2">        ) </span><span class="se">\</span>
+<span class="s2">        UPDATE t </span><span class="se">\</span>
+<span class="s2">        SET t.SK_</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2"> = f.SK_</span><span class="si">{</span><span class="n">foreign_column</span><span class="si">}</span><span class="s2"> </span><span class="se">\</span>
+<span class="s2">        FROM </span><span class="si">{</span><span class="n">table</span><span class="si">}</span><span class="s2"> t </span><span class="se">\</span>
+<span class="s2">        INNER JOIN CTE_MostRecent f ON t.</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2"> = f.</span><span class="si">{</span><span class="n">foreign_column</span><span class="si">}</span><span class="s2"> AND f.rn = 1 </span><span class="se">\</span>
+<span class="s2">        WHERE t.SK_</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2"> = 0;"</span>
+
+    <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
+    <span class="n">cursor</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+
+<span class="sd">"""</span>
+<span class="sd">Methode voor het bijwerken van de lijst met surrogaatsleutels</span>
+<span class="sd">"""</span>
+<span class="k">def</span> <span class="nf">updateSurrogates</span><span class="p">(</span><span class="n">surrogates</span><span class="p">,</span> <span class="n">cursor</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">surrogate</span> <span class="ow">in</span> <span class="n">surrogates</span><span class="p">:</span>
+        <span class="n">table</span> <span class="o">=</span> <span class="n">surrogate</span><span class="p">[</span><span class="s1">'table'</span><span class="p">]</span>
+        <span class="n">column</span> <span class="o">=</span> <span class="n">surrogate</span><span class="p">[</span><span class="s1">'column'</span><span class="p">]</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">foreign_table</span> <span class="o">=</span> <span class="n">surrogate</span><span class="p">[</span><span class="s1">'foreign_table'</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span> <span class="c1"># foreign_table niet gedefinieerd, neem aan dat hetzelfde is als tabel</span>
+            <span class="n">foreign_table</span> <span class="o">=</span> <span class="n">table</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">foreign_column</span> <span class="o">=</span> <span class="n">surrogate</span><span class="p">[</span><span class="s1">'foreign_column'</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span> <span class="c1"># foreign_table niet gedefinieerd, neem aan dat hetzelfde is als tabel</span>
+            <span class="n">foreign_column</span> <span class="o">=</span> <span class="n">column</span>
+
+        <span class="n">updateSurrogate</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">foreign_table</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">foreign_column</span><span class="p">,</span> <span class="n">cursor</span><span class="p">)</span>
+
 <span class="c1"># Tabellen worden gemaakt aan het einde       </span>
 <span class="n">etl_tables</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">surrogates</span> <span class="o">=</span> <span class="p">[]</span>
 </pre></div>
 </div>
 </div>
@@ -8113,7 +8188,7 @@ Imported sales_product_forecast
 <span class="n">product_etl</span>
 
 <span class="c1"># Create Table en doe het in de lijst.</span>
-<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">'Product'</span><span class="p">,</span> <span class="n">product_etl</span><span class="p">,</span> <span class="s1">'PRODUCT_id'</span><span class="p">))</span>
+<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">'table_name'</span><span class="p">:</span> <span class="s1">'Product'</span><span class="p">,</span><span class="s1">'dataframe'</span><span class="p">:</span> <span class="n">product_etl</span><span class="p">,</span><span class="s1">'PK'</span><span class="p">:</span> <span class="s1">'PRODUCT_id'</span><span class="p">,</span><span class="s1">'SK_columns'</span><span class="p">:</span> <span class="p">[]})</span>
 </pre></div>
 </div>
 </div>
@@ -8127,7 +8202,6 @@ Imported sales_product_forecast
 <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
 <pre>Table has 12 columns
-
 </pre>
 </div>
 </div>
@@ -8157,6 +8231,9 @@ Imported sales_product_forecast
 <span class="n">sales_staff_etl</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">sales_staff_etl</span><span class="p">,</span> <span class="n">country</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s1">'COUNTRY_CODE'</span><span class="p">)</span>
 <span class="n">sales_staff_etl</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">sales_staff_etl</span><span class="p">,</span> <span class="n">sales_territory</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s1">'SALES_TERRITORY_CODE'</span><span class="p">)</span>
 
+<span class="c1"># Voeg de volledige naam toe</span>
+<span class="n">sales_staff_etl</span><span class="p">[</span><span class="s1">'FULL_NAME'</span><span class="p">]</span> <span class="o">=</span> <span class="n">sales_staff_etl</span><span class="p">[</span><span class="s1">'FIRST_NAME'</span><span class="p">]</span> <span class="o">+</span> <span class="s1">' '</span> <span class="o">+</span> <span class="n">sales_staff_etl</span><span class="p">[</span><span class="s1">'LAST_NAME'</span><span class="p">]</span>
+
 <span class="c1"># Hernoem</span>
 <span class="n">sales_staff_etl</span> <span class="o">=</span> <span class="n">sales_staff_etl</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">json_file</span><span class="p">)</span>
 
@@ -8168,7 +8245,7 @@ Imported sales_product_forecast
 <span class="n">sales_staff_etl</span>
 
 <span class="c1"># Create Table en doe het in de lijst.</span>
-<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">'Sales_Staff'</span><span class="p">,</span> <span class="n">sales_staff_etl</span><span class="p">,</span> <span class="s1">'SALES_STAFF_id'</span><span class="p">))</span>
+<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">({</span> <span class="s1">'table_name'</span><span class="p">:</span> <span class="s1">'Sales_Staff'</span><span class="p">,</span> <span class="s1">'dataframe'</span><span class="p">:</span> <span class="n">sales_staff_etl</span><span class="p">,</span> <span class="s1">'PK'</span><span class="p">:</span> <span class="s1">'SALES_STAFF_id'</span><span class="p">,</span> <span class="s1">'SK_columns'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'MANAGER_id'</span><span class="p">]</span> <span class="p">})</span>
 </pre></div>
 </div>
 </div>
@@ -8217,7 +8294,7 @@ Imported sales_product_forecast
 <span class="n">satisfaction_type_etl</span>
 
 <span class="c1"># Create Table en doe het in de lijst.</span>
-<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">'Satisfaction_Type'</span><span class="p">,</span> <span class="n">satisfaction_type_etl</span><span class="p">,</span> <span class="s1">'SATISFACTION_TYPE_id'</span><span class="p">))</span>
+<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">({</span> <span class="s1">'table_name'</span><span class="p">:</span> <span class="s1">'Satisfaction_Type'</span><span class="p">,</span> <span class="s1">'dataframe'</span><span class="p">:</span> <span class="n">satisfaction_type_etl</span><span class="p">,</span> <span class="s1">'PK'</span><span class="p">:</span> <span class="s1">'SATISFACTION_TYPE_id'</span><span class="p">,</span> <span class="s1">'SK_columns'</span><span class="p">:</span> <span class="p">[]</span> <span class="p">})</span>
 </pre></div>
 </div>
 </div>
@@ -8266,7 +8343,7 @@ Imported sales_product_forecast
 <span class="n">training_etl</span>
 
 <span class="c1"># Create Table en doe het in de lijst.</span>
-<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">'Training'</span><span class="p">,</span> <span class="n">training_etl</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">({</span> <span class="s1">'table_name'</span><span class="p">:</span> <span class="s1">'Training'</span><span class="p">,</span> <span class="s1">'dataframe'</span><span class="p">:</span> <span class="n">training_etl</span><span class="p">,</span> <span class="s1">'PK'</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">'SK_columns'</span><span class="p">:</span> <span class="p">[]</span> <span class="p">})</span>
 </pre></div>
 </div>
 </div>
@@ -8315,7 +8392,7 @@ Imported sales_product_forecast
 <span class="n">satisfaction_etl</span>
 
 <span class="c1"># Create Table en doe het in de lijst.</span>
-<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">'Satisfaction'</span><span class="p">,</span> <span class="n">satisfaction_etl</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">({</span> <span class="s1">'table_name'</span><span class="p">:</span> <span class="s1">'Satisfaction'</span><span class="p">,</span> <span class="s1">'dataframe'</span><span class="p">:</span> <span class="n">satisfaction_etl</span><span class="p">,</span> <span class="s1">'PK'</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">'SK_columns'</span><span class="p">:</span> <span class="p">[]</span> <span class="p">})</span>
 </pre></div>
 </div>
 </div>
@@ -8364,7 +8441,7 @@ Imported sales_product_forecast
 <span class="n">course_etl</span>
 
 <span class="c1"># Create Table en doe het in de lijst.</span>
-<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">'Course'</span><span class="p">,</span> <span class="n">course_etl</span><span class="p">,</span> <span class="s1">'COURSE_id'</span><span class="p">))</span>
+<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">({</span> <span class="s1">'table_name'</span><span class="p">:</span> <span class="s1">'Course'</span><span class="p">,</span> <span class="s1">'dataframe'</span><span class="p">:</span> <span class="n">course_etl</span><span class="p">,</span> <span class="s1">'PK'</span><span class="p">:</span> <span class="s1">'COURSE_id'</span><span class="p">,</span> <span class="s1">'SK_columns'</span><span class="p">:</span> <span class="p">[]</span> <span class="p">})</span>
 </pre></div>
 </div>
 </div>
@@ -8413,7 +8490,13 @@ Imported sales_product_forecast
 <span class="n">sales_forecast_etl</span>
 
 <span class="c1"># Create Table en doe het in de lijst.</span>
-<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">'Sales_Forecast'</span><span class="p">,</span> <span class="n">sales_forecast_etl</span><span class="p">,</span> <span class="s1">'PRODUCT_id'</span><span class="p">))</span>
+<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+        <span class="s1">'table_name'</span><span class="p">:</span> <span class="s1">'Sales_Forecast'</span><span class="p">,</span>
+        <span class="s1">'dataframe'</span><span class="p">:</span> <span class="n">sales_forecast_etl</span><span class="p">,</span>
+        <span class="s1">'PK'</span><span class="p">:</span> <span class="s1">'PRODUCT_id'</span><span class="p">,</span>
+        <span class="c1"># Broken</span>
+        <span class="s1">'SK_columns'</span><span class="p">:</span> <span class="p">[]</span> <span class="c1">#['PRODUCT_id']</span>
+    <span class="p">})</span>
 </pre></div>
 </div>
 </div>
@@ -8455,7 +8538,10 @@ Imported sales_product_forecast
 <span class="n">retailer_contact_etl</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">retailer_contact</span><span class="p">,</span> <span class="n">retailer_site</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s1">'RETAILER_SITE_CODE'</span><span class="p">)</span>
 <span class="n">retailer_contact_etl</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">retailer_contact_etl</span><span class="p">,</span> <span class="n">country</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s1">'COUNTRY_CODE'</span><span class="p">)</span>
 <span class="n">retailer_contact_etl</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">retailer_contact_etl</span><span class="p">,</span> <span class="n">sales_territory</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s1">'SALES_TERRITORY_CODE'</span><span class="p">)</span>\
-    
+
+<span class="c1"># Voeg de volledige naam toe</span>
+<span class="n">retailer_contact_etl</span><span class="p">[</span><span class="s1">'FULL_NAME'</span><span class="p">]</span> <span class="o">=</span> <span class="n">retailer_contact_etl</span><span class="p">[</span><span class="s1">'FIRST_NAME'</span><span class="p">]</span> <span class="o">+</span> <span class="s1">' '</span> <span class="o">+</span> <span class="n">retailer_contact_etl</span><span class="p">[</span><span class="s1">'LAST_NAME'</span><span class="p">]</span>
+
 <span class="c1"># Hernoem </span>
 <span class="n">retailer_contact_etl</span> <span class="o">=</span> <span class="n">retailer_contact_etl</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">json_file</span><span class="p">)</span>
 
@@ -8467,7 +8553,7 @@ Imported sales_product_forecast
 <span class="n">retailer_contact_etl</span>
 
 <span class="c1"># Create Table en doe het in de lijst.</span>
-<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">'Retailer_Contact'</span><span class="p">,</span> <span class="n">retailer_contact_etl</span><span class="p">,</span> <span class="s1">'RETAILER_CONTACT_id'</span><span class="p">))</span>
+<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">({</span> <span class="s1">'table_name'</span><span class="p">:</span> <span class="s1">'Retailer_Contact'</span><span class="p">,</span> <span class="s1">'dataframe'</span><span class="p">:</span> <span class="n">retailer_contact_etl</span><span class="p">,</span> <span class="s1">'PK'</span><span class="p">:</span> <span class="s1">'RETAILER_CONTACT_id'</span><span class="p">,</span> <span class="s1">'SK_columns'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'RETAILER_id'</span><span class="p">]</span> <span class="p">})</span>
 </pre></div>
 </div>
 </div>
@@ -8528,7 +8614,7 @@ Imported sales_product_forecast
 <span class="n">retailer_etl</span>
 
 <span class="c1"># Create Table en doe het in de lijst.</span>
-<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">'Retailer'</span><span class="p">,</span> <span class="n">retailer_etl</span><span class="p">,</span> <span class="s1">'RETAILER_id'</span><span class="p">))</span>
+<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">({</span> <span class="s1">'table_name'</span><span class="p">:</span> <span class="s1">'Retailer'</span><span class="p">,</span> <span class="s1">'dataframe'</span><span class="p">:</span> <span class="n">retailer_etl</span><span class="p">,</span> <span class="s1">'PK'</span><span class="p">:</span> <span class="s1">'RETAILER_id'</span><span class="p">,</span> <span class="s1">'SK_columns'</span><span class="p">:</span> <span class="p">[]</span> <span class="p">})</span>
 </pre></div>
 </div>
 </div>
@@ -8585,7 +8671,19 @@ Imported sales_product_forecast
 <span class="n">order_etl</span>
 
 <span class="c1"># Create Table en doe het in de lijst.</span>
-<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">'Orders'</span><span class="p">,</span> <span class="n">order_etl</span><span class="p">,</span> <span class="s1">'ORDER_TABLE_id'</span><span class="p">))</span>
+<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">({</span> <span class="s1">'table_name'</span><span class="p">:</span> <span class="s1">'Orders'</span><span class="p">,</span> <span class="s1">'dataframe'</span><span class="p">:</span> <span class="n">order_etl</span><span class="p">,</span> <span class="s1">'PK'</span><span class="p">:</span> <span class="s1">'ORDER_TABLE_id'</span><span class="p">,</span> <span class="s1">'SK_columns'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'SALES_STAFF_id'</span><span class="p">,</span> <span class="s1">'RETAILER_CONTACT_id'</span><span class="p">]</span> <span class="p">})</span>
+
+<span class="c1"># Voeg de Surrogates toe aan de surrogates lijst</span>
+<span class="n">surrogates</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+    <span class="s1">'table'</span><span class="p">:</span> <span class="s1">'Orders'</span><span class="p">,</span>
+    <span class="s1">'foreign_table'</span><span class="p">:</span> <span class="s1">'Sales_Staff'</span><span class="p">,</span>
+    <span class="s1">'column'</span><span class="p">:</span> <span class="s1">'SALES_STAFF_id'</span><span class="p">,</span>
+<span class="p">})</span> 
+<span class="n">surrogates</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+    <span class="s1">'table'</span><span class="p">:</span> <span class="s1">'Orders'</span><span class="p">,</span>
+    <span class="s1">'foreign_table'</span><span class="p">:</span> <span class="s1">'Retailer_Contact'</span><span class="p">,</span>
+    <span class="s1">'column'</span><span class="p">:</span> <span class="s1">'RETAILER_CONTACT_id'</span><span class="p">,</span>
+<span class="p">})</span> 
 </pre></div>
 </div>
 </div>
@@ -8634,7 +8732,7 @@ Imported sales_product_forecast
 <span class="n">return_reason_etl</span>
 
 <span class="c1"># Create Table en doe het in de lijst.</span>
-<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">'Return_Reason'</span><span class="p">,</span> <span class="n">return_reason_etl</span><span class="p">,</span> <span class="s1">'RETURN_REASON_id'</span><span class="p">))</span>
+<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">({</span> <span class="s1">'table_name'</span><span class="p">:</span> <span class="s1">'Return_Reason'</span><span class="p">,</span> <span class="s1">'dataframe'</span><span class="p">:</span> <span class="n">return_reason_etl</span><span class="p">,</span> <span class="s1">'PK'</span><span class="p">:</span> <span class="s1">'RETURN_REASON_id'</span><span class="p">,</span> <span class="s1">'SK_columns'</span><span class="p">:</span> <span class="p">[]</span> <span class="p">})</span>
 </pre></div>
 </div>
 </div>
@@ -8683,7 +8781,7 @@ Imported sales_product_forecast
 <span class="n">returned_item_etl</span>
 
 <span class="c1"># Create Table en doe het in de lijst.</span>
-<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">'Returns'</span><span class="p">,</span> <span class="n">returned_item_etl</span><span class="p">,</span> <span class="s1">'RETURNS_id'</span><span class="p">))</span>
+<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">({</span> <span class="s1">'table_name'</span><span class="p">:</span> <span class="s1">'Returns'</span><span class="p">,</span> <span class="s1">'dataframe'</span><span class="p">:</span> <span class="n">returned_item_etl</span><span class="p">,</span> <span class="s1">'PK'</span><span class="p">:</span> <span class="s1">'RETURNS_id'</span><span class="p">,</span> <span class="s1">'SK_columns'</span><span class="p">:</span> <span class="p">[]</span> <span class="p">})</span>
 </pre></div>
 </div>
 </div>
@@ -8732,7 +8830,14 @@ Imported sales_product_forecast
 <span class="n">order_detail_etl</span>
 
 <span class="c1"># Create Table en doe het in de lijst.</span>
-<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">'Order_Details'</span><span class="p">,</span> <span class="n">order_detail_etl</span><span class="p">,</span> <span class="s1">'ORDER_DETAIL_id'</span><span class="p">))</span>
+<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">({</span> <span class="s1">'table_name'</span><span class="p">:</span> <span class="s1">'Order_Details'</span><span class="p">,</span> <span class="s1">'dataframe'</span><span class="p">:</span> <span class="n">order_detail_etl</span><span class="p">,</span> <span class="s1">'PK'</span><span class="p">:</span> <span class="s1">'ORDER_DETAIL_id'</span><span class="p">,</span> <span class="s1">'SK_columns'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'PRODUCT_id'</span><span class="p">]</span> <span class="p">})</span>
+
+<span class="c1"># Voeg de Surrogates toe aan de lijst</span>
+<span class="n">surrogates</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+    <span class="s1">'table'</span><span class="p">:</span> <span class="s1">'Order_Details'</span><span class="p">,</span>
+    <span class="s1">'foreign_table'</span><span class="p">:</span> <span class="s1">'Product'</span><span class="p">,</span>
+    <span class="s1">'column'</span><span class="p">:</span> <span class="s1">'PRODUCT_id'</span><span class="p">,</span>
+<span class="p">})</span> 
 </pre></div>
 </div>
 </div>
@@ -8770,7 +8875,10 @@ Imported sales_product_forecast
 <div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
-<div class="highlight hl-ipython3"><pre><span></span><span class="c1"># Hernoem</span>
+<div class="highlight hl-ipython3"><pre><span></span><span class="c1"># Verwijder de RETAILER_NAME kolom, omdat die al in de retailer tabel zit.</span>
+<span class="n">sales_target_etl</span> <span class="o">=</span> <span class="n">SALES_TARGETData</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s1">'RETAILER_NAME'</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+<span class="c1"># Hernoem</span>
 <span class="n">sales_target_etl</span> <span class="o">=</span> <span class="n">SALES_TARGETData</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">json_file</span><span class="p">)</span>
 <span class="n">sales_target_etl</span> <span class="o">=</span> <span class="n">sales_target_etl</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s1">'Id'</span><span class="p">:</span><span class="s1">'TARGET_id'</span><span class="p">})</span>
 
@@ -8782,7 +8890,20 @@ Imported sales_product_forecast
 <span class="n">sales_target_etl</span>  
 
 <span class="c1"># Create Table en doe het in de lijst.</span>
-<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">'Sales_Target'</span><span class="p">,</span> <span class="n">sales_target_etl</span><span class="p">,</span> <span class="s1">'TARGET_id'</span><span class="p">))</span>
+<span class="n">etl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">({</span> <span class="s1">'table_name'</span><span class="p">:</span> <span class="s1">'Sales_Target'</span><span class="p">,</span> <span class="s1">'dataframe'</span><span class="p">:</span> <span class="n">sales_target_etl</span><span class="p">,</span> <span class="s1">'PK'</span><span class="p">:</span> <span class="s1">'TARGET_id'</span><span class="p">,</span> <span class="s1">'SK_columns'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'SALES_STAFF_id'</span><span class="p">,</span> <span class="s1">'PRODUCT_id'</span><span class="p">]</span> <span class="p">})</span>
+
+<span class="c1"># Voeg de Surrogates toe aan de lijst</span>
+<span class="n">surrogates</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+    <span class="s1">'table'</span><span class="p">:</span> <span class="s1">'Sales_Target'</span><span class="p">,</span>
+    <span class="s1">'foreign_table'</span><span class="p">:</span> <span class="s1">'Product'</span><span class="p">,</span>
+    <span class="s1">'column'</span><span class="p">:</span> <span class="s1">'PRODUCT_id'</span><span class="p">,</span>
+<span class="p">})</span> 
+
+<span class="n">surrogates</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+    <span class="s1">'table'</span><span class="p">:</span> <span class="s1">'Sales_Target'</span><span class="p">,</span>
+    <span class="s1">'foreign_table'</span><span class="p">:</span> <span class="s1">'Sales_Staff'</span><span class="p">,</span>
+    <span class="s1">'column'</span><span class="p">:</span> <span class="s1">'SALES_STAFF_id'</span><span class="p">,</span>
+<span class="p">})</span> 
 </pre></div>
 </div>
 </div>
@@ -8808,7 +8929,7 @@ Imported sales_product_forecast
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h3 id="Uploaden-naar-de-database.">Uploaden naar de database.<a class="anchor-link" href="#Uploaden-naar-de-database.">¶</a></h3><p>Nu gaan we alle data uploaden naar de database om ervoor te zorgen dat we alle data juist in de database hebben geupload.</p>
+<h3 id="Uploaden-naar-de-database.">Uploaden naar de database.<a class="anchor-link" href="#Uploaden-naar-de-database.">¶</a></h3><p>Nu gaan we alle data uploaden naar de database om ervoor te zorgen dat we alle data juist in de database hebben geupload. Daarna voegen we de surrogate keys toe aan de database.</p>
 </div>
 </div>
 </div>
@@ -8822,12 +8943,14 @@ Imported sales_product_forecast
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="c1"># Nu maken we de tabellen aan</span>
 <span class="k">for</span> <span class="n">table</span> <span class="ow">in</span> <span class="n">etl_tables</span><span class="p">:</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Creating </span><span class="si">{</span><span class="n">table</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-    <span class="n">createTable</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">table</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">table</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">cursor</span><span class="p">)</span>
-    <span class="n">insertTable</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">table</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">table</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">cursor</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Inserted </span><span class="si">{</span><span class="n">table</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Creating </span><span class="si">{</span><span class="n">table</span><span class="p">[</span><span class="s1">'table_name'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">createTable</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s1">'table_name'</span><span class="p">],</span> <span class="n">table</span><span class="p">[</span><span class="s1">'dataframe'</span><span class="p">],</span> <span class="n">table</span><span class="p">[</span><span class="s1">'PK'</span><span class="p">],</span> <span class="n">table</span><span class="p">[</span><span class="s1">'SK_columns'</span><span class="p">],</span> <span class="n">cursor</span><span class="p">)</span>
+    <span class="n">insertTable</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s1">'table_name'</span><span class="p">],</span> <span class="n">table</span><span class="p">[</span><span class="s1">'dataframe'</span><span class="p">],</span> <span class="n">table</span><span class="p">[</span><span class="s1">'PK'</span><span class="p">],</span> <span class="n">table</span><span class="p">[</span><span class="s1">'SK_columns'</span><span class="p">],</span> <span class="n">cursor</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Inserted </span><span class="si">{</span><span class="n">table</span><span class="p">[</span><span class="s1">'table_name'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
-<span class="c1"># Close the connection</span>
+<span class="c1"># Update surrogates, zodat de surrogaatsleutels worden bijgewerkt in de SQL server</span>
+<span class="n">updateSurrogates</span><span class="p">(</span><span class="n">surrogates</span><span class="p">,</span> <span class="n">cursor</span><span class="p">)</span>
+
 <span class="nb">print</span><span class="p">(</span><span class="s2">"All is done"</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -8844,17 +8967,17 @@ Imported sales_product_forecast
 <pre>Creating Product
 Inserted Product
 Creating Sales_Staff
-Inserted Sales_Staff
-Creating Satisfaction_Type
-Inserted Satisfaction_Type
-Creating Training
-</pre>
+Inserted Sales_Staff</pre>
 </div>
 </div>
 <div class="jp-OutputArea-child">
 <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
-<pre>Inserted Training
+<pre>
+Creating Satisfaction_Type
+Inserted Satisfaction_Type
+Creating Training
+Inserted Training
 Creating Satisfaction
 Inserted Satisfaction
 Creating Course
@@ -8949,7 +9072,7 @@ Order_Details
 Sales_Target
 
 Resultaat:
-[(94, datetime.datetime(2024, 3, 21, 21, 50, 47, 493000), 8, '5-3-2013', Decimal('0.410000000000'), 'Cooking Gear', Decimal('75.0000'), 'Camping Equipment', 'EN', 1, 1, 'TrailChef Double Flame', 'The TrailChef Double Flame is a camp stove which attaches directly to fuel canisters. Features precise flame control and a built-in windscreen.  Weight is 850 g, fuel is propane.', 'P08CE1CG1.jpg')]
+[(94, datetime.datetime(2024, 3, 26, 23, 58, 59, 167000), 8, Decimal('0.410000000000'), 'Cooking Gear', 1, 'P08CE1CG1.jpg', 'EN', 'TrailChef Double Flame', 'The TrailChef Double Flame is a camp stove which attaches directly to fuel canisters. Features precise flame control and a built-in windscreen.  Weight is 850 g, fuel is propane.', 'Camping Equipment', 1, Decimal('75.0000'), '5-3-2013')]
 </pre>
 </div>
 </div>

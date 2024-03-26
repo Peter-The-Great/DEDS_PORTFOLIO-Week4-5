@@ -11,6 +11,7 @@ import pandas as pd
 import pyodbc
 import os
 import sqlite3
+import numpy as np
 import sqlalchemy
 import json
 import warnings
@@ -55,6 +56,7 @@ else:
     except pyodbc.Error as e:
         print("Error:", e)
         conn.rollback()
+
 
 # %% [markdown]
 # Hieronder checken we of we alle drivers hebben geinstalleerd. Meestal maken we gebruikt van de SQL Server driver en SQLite driver. Maar als je op een nieuwer systeem zit kan je ook gebruik maken van de Microsoft Access driver gebruik maken.
@@ -190,7 +192,7 @@ def filterColumns(dataframe):
     valid_columns = list(json_file.values())
     valid_columns_set = set(valid_columns)
     actual_columns_set = set(dataframe.columns)
-    intersection_columns = list(valid_columns_set.intersection(actual_columns_set))
+    intersection_columns = list(actual_columns_set.intersection(valid_columns_set))
 
     # Gebruik de kolommen die in de json file staan om de dataframes te filteren
     return dataframe[intersection_columns]
@@ -265,8 +267,10 @@ def columnType(column_name):
 """
 Methode om tabellen aan te maken van dataframes in SQL server
 """
-def createTable(tablename, dataframe, PK, cursor):
+def createTable(tablename, dataframe, PK, SK_list, cursor):
     SK = ''
+    columns = ''
+    foreign_SQL_SK_columns = ''
     if PK == None:
         PK = dataframe.columns[0]
         SK = f'SK_{tablename}'
@@ -274,60 +278,76 @@ def createTable(tablename, dataframe, PK, cursor):
     else:
         SK = f'SK_{PK}'
         columns = f'{PK} {columnType(PK)} NOT NULL'
-    # Voeg de primary key to als de derde kolom
+    # Voeg de primary key toe, maar als die leeg is probeer je de eerste kolom.
     
-    # Voeg de rest van de kolomen toe.
+    # Voege de rest van de kolommen toe
     for column in dataframe.columns:
         if column != PK: # PK bestaat al
             columns += f', {column} {columnType(column)}'
+            if column in SK_list:
+                foreign_SQL_SK_columns += f', SK_{column} INT'
 
     surogate_columns = f"{SK} INT IDENTITY(1,1) NOT NULL PRIMARY KEY, Timestamp DATETIME NOT NULL DEFAULT(GETDATE())"
 
-    # Create the command
-    command = f"CREATE TABLE {tablename} ({surogate_columns}, {columns})"
+    # Maak de tabel aan
+    command = f"CREATE TABLE {tablename} ({surogate_columns}, {columns+foreign_SQL_SK_columns})"
 
     try:
         cursor.execute(command)
         cursor.commit()
     except pyodbc.Error as e:
-        if 'There is already an object named' in str(e):
-            print('Table already exists in database')
-        else:
-            raise(e)
+        raise(e)
+
 
 """
 Methode of de dataframe te inserten in de SQL server
 """
-def insertTable(tablename, dataframe, PK, cursor):
+def insertTable(tablename, dataframe, PK, SK_list, cursor):
     # Voeg de primary key toe, maar als die leeg is probeer je de eerste kolom.
-    columns = ''
+    SQL_columns = ''
+    SQL_SK_columns = ''
     if PK == None:
         PK = dataframe.columns[0]
         
-    columns = PK
+    SQL_columns = PK
         
-    # Voeg dan de rest van de kolommen erbij
+    # Voeg alle andere kolommen toe
     for column in dataframe.columns:
-        if column != PK: # PK bestaat al
-            columns += f', {column}'
+        # Skip de PK kolom
+        if column != PK: 
+            # Maak de SK kolommen aan
+            if column in SK_list:
+                SQL_columns    += f', {column}'
+                SQL_SK_columns += f', SK_{column}'
+            else:
+                SQL_columns    += f', {column}'
+
     
-    # Doe de inserts
+    # Voer de insert commando uit
     for i, row in dataframe.iterrows():
         values = ''
+        SK_values = ''
         values += str(row[PK])
 
+        # Add values
         for column in dataframe.columns:
-            if column != PK: # PK bestaat al
+            if column != PK: # PK is already added
                 try:
                     val = str(row[column]).replace("'","''")
-                    if val != 'None':
+                    if val != 'None' and val != np.nan:
                         values += f", '{val}'"
+                        if column in SK_list:
+                            # NULL refereerd naar de SK van de andere tabel
+                            SK_values += ', 0'
                     else:
                         values += f", NULL"
+                        if column in SK_list:
+                            # NULL refereerd naar de SK van de andere tabel
+                            SK_values += ', NULL'
                 except AttributeError:
                     values += f", NULL"
 
-        command = f"INSERT INTO {tablename} ({columns}) VALUES ({values});\n"
+        command = f"INSERT INTO {tablename} ({SQL_columns+SQL_SK_columns}) VALUES ({values+SK_values});\n"
         
         cursor.execute(command)
     
@@ -340,8 +360,51 @@ def insertTable(tablename, dataframe, PK, cursor):
             print(command)
             print(e)
 
+"""
+Methode om de surrogaatsleutels van een tabel in de SQL-server bij te werken
+"""
+def updateSurrogate(table, foreign_table, column, foreign_column, cursor):
+
+    command = \
+    f"WITH CTE_MostRecent AS ( \
+            SELECT \
+                SK_{foreign_column}, \
+                {foreign_column}, \
+                ROW_NUMBER() OVER(PARTITION BY SK_{foreign_column} ORDER BY Timestamp DESC) AS rn \
+            FROM \
+                {foreign_table}  \
+        ) \
+        UPDATE t \
+        SET t.SK_{column} = f.SK_{foreign_column} \
+        FROM {table} t \
+        INNER JOIN CTE_MostRecent f ON t.{column} = f.{foreign_column} AND f.rn = 1 \
+        WHERE t.SK_{column} = 0;"
+
+    cursor.execute(command)
+    cursor.commit()
+
+"""
+Methode voor het bijwerken van de lijst met surrogaatsleutels
+"""
+def updateSurrogates(surrogates, cursor):
+    for surrogate in surrogates:
+        table = surrogate['table']
+        column = surrogate['column']
+
+        try:
+            foreign_table = surrogate['foreign_table']
+        except KeyError: # foreign_table niet gedefinieerd, neem aan dat hetzelfde is als tabel
+            foreign_table = table
+        try:
+            foreign_column = surrogate['foreign_column']
+        except KeyError: # foreign_table niet gedefinieerd, neem aan dat hetzelfde is als tabel
+            foreign_column = column
+
+        updateSurrogate(table, foreign_table, column, foreign_column, cursor)
+
 # Tabellen worden gemaakt aan het einde       
 etl_tables = []
+surrogates = []
 
 # %% [markdown]
 # Nu gaan we eindelijk de data transformeren en in de database stoppen. Eerst gaan we producten, staff, satisfaction, course, sales_forcast, retailer_contact, retailer, Orders, returned_season, returned_item en Order_details importeren. Dit zijn de tabellen die we hebben gemaakt in de database.
@@ -367,7 +430,7 @@ sizeCheck(product_etl,12)
 product_etl
 
 # Create Table en doe het in de lijst.
-etl_tables.append(('Product', product_etl, 'PRODUCT_id'))
+etl_tables.append({'table_name': 'Product','dataframe': product_etl,'PK': 'PRODUCT_id','SK_columns': []})
 
 # %% [markdown]
 # ### Sales_staff
@@ -377,6 +440,9 @@ etl_tables.append(('Product', product_etl, 'PRODUCT_id'))
 sales_staff_etl = pd.merge(sales_staff, sales_branch, on='SALES_BRANCH_CODE')
 sales_staff_etl = pd.merge(sales_staff_etl, country, on='COUNTRY_CODE')
 sales_staff_etl = pd.merge(sales_staff_etl, sales_territory, on='SALES_TERRITORY_CODE')
+
+# Voeg de volledige naam toe
+sales_staff_etl['FULL_NAME'] = sales_staff_etl['FIRST_NAME'] + ' ' + sales_staff_etl['LAST_NAME']
 
 # Hernoem
 sales_staff_etl = sales_staff_etl.rename(columns=json_file)
@@ -389,7 +455,7 @@ sizeCheck(sales_staff_etl,23)
 sales_staff_etl
 
 # Create Table en doe het in de lijst.
-etl_tables.append(('Sales_Staff', sales_staff_etl, 'SALES_STAFF_id'))
+etl_tables.append({ 'table_name': 'Sales_Staff', 'dataframe': sales_staff_etl, 'PK': 'SALES_STAFF_id', 'SK_columns': ['MANAGER_id'] })
 
 # %% [markdown]
 # ### Satisfaction_type
@@ -406,7 +472,7 @@ sizeCheck(satisfaction_type_etl,2)
 satisfaction_type_etl
 
 # Create Table en doe het in de lijst.
-etl_tables.append(('Satisfaction_Type', satisfaction_type_etl, 'SATISFACTION_TYPE_id'))
+etl_tables.append({ 'table_name': 'Satisfaction_Type', 'dataframe': satisfaction_type_etl, 'PK': 'SATISFACTION_TYPE_id', 'SK_columns': [] })
 
 # %% [markdown]
 # ### Training
@@ -423,7 +489,7 @@ sizeCheck(training_etl,3)
 training_etl
 
 # Create Table en doe het in de lijst.
-etl_tables.append(('Training', training_etl, None))
+etl_tables.append({ 'table_name': 'Training', 'dataframe': training_etl, 'PK': None, 'SK_columns': [] })
 
 # %% [markdown]
 # ### Satisfaction
@@ -440,7 +506,7 @@ sizeCheck(satisfaction_etl,3)
 satisfaction_etl
 
 # Create Table en doe het in de lijst.
-etl_tables.append(('Satisfaction', satisfaction_etl, None))
+etl_tables.append({ 'table_name': 'Satisfaction', 'dataframe': satisfaction_etl, 'PK': None, 'SK_columns': [] })
 
 # %% [markdown]
 # ### Course
@@ -457,7 +523,7 @@ sizeCheck(course_etl,2)
 course_etl
 
 # Create Table en doe het in de lijst.
-etl_tables.append(('Course', course_etl, 'COURSE_id'))
+etl_tables.append({ 'table_name': 'Course', 'dataframe': course_etl, 'PK': 'COURSE_id', 'SK_columns': [] })
 
 # %% [markdown]
 # ### Sales Forecast
@@ -474,7 +540,13 @@ sizeCheck(sales_forecast_etl,4)
 sales_forecast_etl
 
 # Create Table en doe het in de lijst.
-etl_tables.append(('Sales_Forecast', sales_forecast_etl, 'PRODUCT_id'))
+etl_tables.append({
+        'table_name': 'Sales_Forecast',
+        'dataframe': sales_forecast_etl,
+        'PK': 'PRODUCT_id',
+        # Broken
+        'SK_columns': [] #['PRODUCT_id']
+    })
 
 # %% [markdown]
 # ### Retailer_contact
@@ -484,7 +556,10 @@ etl_tables.append(('Sales_Forecast', sales_forecast_etl, 'PRODUCT_id'))
 retailer_contact_etl = pd.merge(retailer_contact, retailer_site, on='RETAILER_SITE_CODE')
 retailer_contact_etl = pd.merge(retailer_contact_etl, country, on='COUNTRY_CODE')
 retailer_contact_etl = pd.merge(retailer_contact_etl, sales_territory, on='SALES_TERRITORY_CODE')\
-    
+
+# Voeg de volledige naam toe
+retailer_contact_etl['FULL_NAME'] = retailer_contact_etl['FIRST_NAME'] + ' ' + retailer_contact_etl['LAST_NAME']
+
 # Hernoem 
 retailer_contact_etl = retailer_contact_etl.rename(columns=json_file)
 
@@ -496,7 +571,7 @@ sizeCheck(retailer_contact_etl,23)
 retailer_contact_etl
 
 # Create Table en doe het in de lijst.
-etl_tables.append(('Retailer_Contact', retailer_contact_etl, 'RETAILER_CONTACT_id'))
+etl_tables.append({ 'table_name': 'Retailer_Contact', 'dataframe': retailer_contact_etl, 'PK': 'RETAILER_CONTACT_id', 'SK_columns': ['RETAILER_id'] })
 
 # %% [markdown]
 # ### Retailer
@@ -525,7 +600,7 @@ sizeCheck(retailer_etl,22)
 retailer_etl
 
 # Create Table en doe het in de lijst.
-etl_tables.append(('Retailer', retailer_etl, 'RETAILER_id'))
+etl_tables.append({ 'table_name': 'Retailer', 'dataframe': retailer_etl, 'PK': 'RETAILER_id', 'SK_columns': [] })
 
 # %% [markdown]
 # ### Orders
@@ -550,7 +625,19 @@ sizeCheck(order_etl,7)
 order_etl
 
 # Create Table en doe het in de lijst.
-etl_tables.append(('Orders', order_etl, 'ORDER_TABLE_id'))
+etl_tables.append({ 'table_name': 'Orders', 'dataframe': order_etl, 'PK': 'ORDER_TABLE_id', 'SK_columns': ['SALES_STAFF_id', 'RETAILER_CONTACT_id'] })
+
+# Voeg de Surrogates toe aan de surrogates lijst
+surrogates.append({
+    'table': 'Orders',
+    'foreign_table': 'Sales_Staff',
+    'column': 'SALES_STAFF_id',
+}) 
+surrogates.append({
+    'table': 'Orders',
+    'foreign_table': 'Retailer_Contact',
+    'column': 'RETAILER_CONTACT_id',
+}) 
 
 # %% [markdown]
 # ### Returned_season
@@ -567,7 +654,7 @@ sizeCheck(return_reason_etl,2)
 return_reason_etl
 
 # Create Table en doe het in de lijst.
-etl_tables.append(('Return_Reason', return_reason_etl, 'RETURN_REASON_id'))
+etl_tables.append({ 'table_name': 'Return_Reason', 'dataframe': return_reason_etl, 'PK': 'RETURN_REASON_id', 'SK_columns': [] })
 
 # %% [markdown]
 # ### Returned_item
@@ -584,7 +671,7 @@ sizeCheck(returned_item_etl,5)
 returned_item_etl
 
 # Create Table en doe het in de lijst.
-etl_tables.append(('Returns', returned_item_etl, 'RETURNS_id'))
+etl_tables.append({ 'table_name': 'Returns', 'dataframe': returned_item_etl, 'PK': 'RETURNS_id', 'SK_columns': [] })
 
 # %% [markdown]
 # ### Order_details
@@ -601,12 +688,22 @@ sizeCheck(order_detail_etl,7)
 order_detail_etl
 
 # Create Table en doe het in de lijst.
-etl_tables.append(('Order_Details', order_detail_etl, 'ORDER_DETAIL_id'))
+etl_tables.append({ 'table_name': 'Order_Details', 'dataframe': order_detail_etl, 'PK': 'ORDER_DETAIL_id', 'SK_columns': ['PRODUCT_id'] })
+
+# Voeg de Surrogates toe aan de lijst
+surrogates.append({
+    'table': 'Order_Details',
+    'foreign_table': 'Product',
+    'column': 'PRODUCT_id',
+}) 
 
 # %% [markdown]
 # ### Sales Target
 
 # %%
+# Verwijder de RETAILER_NAME kolom, omdat die al in de retailer tabel zit.
+sales_target_etl = SALES_TARGETData.drop('RETAILER_NAME', axis=1)
+
 # Hernoem
 sales_target_etl = SALES_TARGETData.rename(columns=json_file)
 sales_target_etl = sales_target_etl.rename(columns={'Id':'TARGET_id'})
@@ -619,22 +716,37 @@ sizeCheck(sales_target_etl,5)
 sales_target_etl  
 
 # Create Table en doe het in de lijst.
-etl_tables.append(('Sales_Target', sales_target_etl, 'TARGET_id'))
+etl_tables.append({ 'table_name': 'Sales_Target', 'dataframe': sales_target_etl, 'PK': 'TARGET_id', 'SK_columns': ['SALES_STAFF_id', 'PRODUCT_id'] })
+
+# Voeg de Surrogates toe aan de lijst
+surrogates.append({
+    'table': 'Sales_Target',
+    'foreign_table': 'Product',
+    'column': 'PRODUCT_id',
+}) 
+
+surrogates.append({
+    'table': 'Sales_Target',
+    'foreign_table': 'Sales_Staff',
+    'column': 'SALES_STAFF_id',
+}) 
 
 # %% [markdown]
 # ### Uploaden naar de database.
 # 
-# Nu gaan we alle data uploaden naar de database om ervoor te zorgen dat we alle data juist in de database hebben geupload.
+# Nu gaan we alle data uploaden naar de database om ervoor te zorgen dat we alle data juist in de database hebben geupload. Daarna voegen we de surrogate keys toe aan de database.
 
 # %%
 # Nu maken we de tabellen aan
 for table in etl_tables:
-    print(f"Creating {table[0]}")
-    createTable(table[0], table[1], table[2], cursor)
-    insertTable(table[0], table[1], table[2], cursor)
-    print(f"Inserted {table[0]}")
+    print(f"Creating {table['table_name']}")
+    createTable(table['table_name'], table['dataframe'], table['PK'], table['SK_columns'], cursor)
+    insertTable(table['table_name'], table['dataframe'], table['PK'], table['SK_columns'], cursor)
+    print(f"Inserted {table['table_name']}")
 
-# Close the connection
+# Update surrogates, zodat de surrogaatsleutels worden bijgewerkt in de SQL server
+updateSurrogates(surrogates, cursor)
+
 print("All is done")
 
 # %% [markdown]
